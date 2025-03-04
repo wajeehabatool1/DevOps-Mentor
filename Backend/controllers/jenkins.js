@@ -47,15 +47,15 @@ const updateNginxConfig = async (userSocketId, jenkinsPort) => {
   let defaultConfigContent = fs.readFileSync(defaultConfigPath, 'utf-8');
 
   const locationBlock = `
-    location /${userSocketId}/jenkins/ {
-        proxy_pass http://127.0.0.1:${jenkinsPort}/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_redirect off;
-        rewrite ^/jenkins(/.*)$ $1 break;
-    }
+  location /${userSocketId}/jenkins/ {    # Removed trailing slash
+    proxy_pass http://127.0.0.1:${jenkinsPort}/${userSocketId}/jenkins/;    # Removed trailing slash
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_redirect off;
+    
+  }
   `;
 
   
@@ -110,20 +110,20 @@ const setupJenkinsNamespace = async () => {
       const jenkinsClientPort =  await getRandomPort();
       const jenkinsContainer = await dockerClient.createContainer({
           Image: 'jenkins/jenkins:lts',
-          Cmd: ['/bin/bash'],
           Tty: true,
           AttachStdin: true,
           AttachStdout: true,
           AttachStderr: true,
           OpenStdin: true,
           StdinOnce: false,
+          Env: [`JENKINS_OPTS=--prefix=/${userId}/jenkins`],
           HostConfig: {
-            HostConfig: {
+            
               PortBindings: {
                   "8080/tcp": [{ HostPort: `${jenkinsPort}`}],
                   "50000/tcp": [{ HostPort: `${jenkinsClientPort}`}]
-              }
-            },
+              },
+            
             Privileged: true, 
             CapAdd: ['ALL'],
           },
@@ -134,7 +134,7 @@ const setupJenkinsNamespace = async () => {
           containerId: jenkinsContainerId,
           port: jenkinsPort
       }));
-      const jenkinsURL = `http://34.47.137.63:80/${userId}/jenkins`;
+      const jenkinsURL = `http://35.207.197.63:80/${userId}/jenkins/`;
       console.log(`Jenkins UI for ${userId}: ${jenkinsURL}`);
       await updateNginxConfig(userId, jenkinsPort);
       const exec = await jenkinsContainer.exec({
@@ -148,6 +148,7 @@ const setupJenkinsNamespace = async () => {
       stream.on('data', (chunk) => {
           socket.emit('output', chunk.toString());
       });
+      socket.emit("jenkins_url", { url: jenkinsURL });
       socket.on('command', async (command) => {
           if (command !== "done_lab") {
               stream.write(command);

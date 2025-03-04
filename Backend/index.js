@@ -46,8 +46,8 @@ const initializeApp = async () => {
     await redisClientPool.initialize(); 
 
    await dockerClientPool.initialize();
-   //setupTerminalNamespace();
-   setupJenkinsNamespace();
+   await setupTerminalNamespace();
+   await setupJenkinsNamespace();
   
     const port = process.env.PORT || 3000;
     httpServer.listen(port, () => {
